@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日報 ミャンマー語翻訳ツール</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --green: #28a745;
+            --red: #d32f2f;
+            --yellow-bg: #fff9c4;
+            --border: #ddd;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+            color: #333;
+            margin: 0;
+        }
+        .container {
+            max-width: 960px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.3rem;
+            color: var(--primary);
+            margin: 0 0 4px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 0.83rem;
+            color: #888;
+            margin-bottom: 18px;
+        }
+
+        /* モード切替 */
+        .mode-tabs {
+            display: flex;
+            border: 2px solid var(--primary);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .mode-tab {
+            flex: 1;
+            padding: 9px 6px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: bold;
+            background: white;
+            color: var(--primary);
+            border: none;
+            line-height: 1.4;
+            transition: background 0.2s, color 0.2s;
+        }
+        .mode-tab.active { background: var(--primary); color: white; }
+        .mode-tab:not(:last-child) { border-right: 2px solid var(--primary); }
+        .badge {
+            display: inline-block;
+            font-size: 0.62rem;
+            background: #ffc107;
+            color: #333;
+            border-radius: 3px;
+            padding: 1px 4px;
+            margin-left: 3px;
+            vertical-align: middle;
+        }
+        .mode-tab.active .badge { background: rgba(255,255,255,0.3); color: white; }
+
+        /* 共通入力エリア */
+        .input-label {
+            display: block;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+        }
+        #inputText {
+            width: 100%;
+            min-height: 200px;
+            padding: 12px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        #inputText:focus { outline: none; border-color: var(--primary); }
+        #inputText.drag-over { border-color: var(--green); background: #f0fff4; }
+        .drop-hint {
+            text-align: center;
+            font-size: 0.77rem;
+            color: #bbb;
+            margin: 4px 0 12px;
+        }
+
+        /* APIキーエリア（APIモードのみ表示） */
+        .api-section {
+            display: none;
+            background: #f8f9fa;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
+        }
+        .api-section.visible { display: block; }
+        .api-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .api-row label { font-size: 0.8rem; font-weight: bold; color: #555; white-space: nowrap; }
+        .api-row input {
+            flex: 1;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            padding: 6px 10px;
+            font-size: 13px;
+        }
+        .save-btn {
+            padding: 6px 14px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .api-note {
+            font-size: 0.72rem;
+            color: #999;
+            margin: 5px 0 0;
+        }
+
+        /* 実行ボタン */
+        .btn-run {
+            width: 100%;
+            padding: 13px;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 4px;
+        }
+        .btn-run.free { background: var(--green); }
+        .btn-run.free:hover { background: #218838; }
+        .btn-run.api  { background: var(--primary); }
+        .btn-run.api:hover  { background: #1558b0; }
+        .btn-run:disabled { background: #aaa !important; cursor: not-allowed; }
+
+        /* ローディング */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 16px;
+            color: #666;
+            font-style: italic;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 3px solid #ddd;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* エラー */
+        .error-msg {
+            display: none;
+            background: #fdecea;
+            color: var(--red);
+            border: 1px solid #f5c6c6;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin: 10px 0;
+            font-size: 0.87rem;
+            white-space: pre-wrap;
+        }
+
+        /* 出力エリア */
+        #outputArea {
+            margin-top: 28px;
+            border: 2px solid #333;
+            padding: 20px;
+            display: none;
+        }
+        .output-header {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+        }
+        .output-header h2 { margin: 0 0 4px; font-size: 1.2rem; }
+        .output-date { font-size: 0.82rem; color: #666; }
+        .qr-area {
+            float: right;
+            text-align: center;
+            margin-left: 16px;
+            margin-bottom: 8px;
+        }
+        .qr-area p { font-size: 0.68rem; color: #888; margin: 4px 0 0; }
+        .report-card {
+            margin-bottom: 20px;
+            border-bottom: 1px dashed #ccc;
+            padding-bottom: 14px;
+        }
+        .report-card:last-child { border-bottom: none; }
+        .label-group { margin-bottom: 6px; }
+        .label-my {
+            display: block;
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--red);
+        }
+        .label-ja {
+            display: block;
+            font-size: 0.73rem;
+            color: #888;
+        }
+        .section-body {
+            background: var(--yellow-bg);
+            padding: 11px 13px;
+            border-radius: 5px;
+            font-size: 0.93rem;
+            white-space: pre-wrap;
+            line-height: 1.7;
+            min-height: 1.4em;
+        }
+        .empty-notice { color: #bbb; font-style: italic; font-size: 0.83rem; }
+
+        /* 印刷・シェアボタン */
+        .action-btns {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 14px;
+            flex-wrap: wrap;
+        }
+        .print-btn, .line-btn {
+            padding: 10px 28px;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.93rem;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .print-btn { background: #555; }
+        .print-btn:hover { background: #333; }
+        .line-btn { background: #06c755; font-size: 1rem; }
+        .line-btn:hover { background: #05a847; }
+
+        /* ===== パッケージQRパネル ===== */
+        .pkg-qr-panel {
+            max-width: 960px;
+            margin: 20px auto 0;
+            background: #ffffff;
+            border: 1px solid #d8dee8;
+            border-radius: 8px;
+            padding: clamp(18px, 4vw, 36px);
+            text-align: center;
+        }
+        .pkg-qr-title {
+            margin: 0 0 14px;
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #17202a;
+        }
+        .pkg-qr-image {
+            display: block;
+            width: min(100%, 280px);
+            height: auto;
+            margin: 0 auto;
+            border: 20px solid #ffffff;
+            background: #ffffff;
+            image-rendering: pixelated;
+        }
+        .pkg-qr-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            margin-top: 12px;
+            padding: 0 18px;
+            border-radius: 6px;
+            background: #1168d8;
+            color: #ffffff;
+            font-weight: 800;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .pkg-qr-link:hover { opacity: 0.9; }
+        .pkg-qr-url {
+            margin: 10px auto 0;
+            max-width: 800px;
+            overflow-wrap: anywhere;
+            color: #516070;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .pkg-qr-note {
+            color: #8a4b00;
+            font-weight: 700;
+            margin: 8px auto 0;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .pkg-qr-placeholder {
+            display: grid;
+            place-items: center;
+            min-height: 120px;
+            padding: 16px;
+            border: 2px solid #111;
+            background: #ffffff;
+            color: #8a4b00;
+            font-weight: 800;
+            line-height: 1.6;
+            font-size: 13px;
+        }
+        .pkg-qr-input-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        .pkg-qr-input-row input {
+            flex: 1;
+            min-width: 240px;
+            padding: 9px 12px;
+            border: 1px solid #d8dee8;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            .pkg-qr-panel { display: none !important; }
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; padding: 10px; }
+            #outputArea { display: block !important; border: 1px solid #333; }
+            .qr-area { float: right; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 class="no-print">日報 ミャンマー語翻訳ツール</h1>
+    <p class="subtitle no-print">နေ့စဉ် အစီရင်ခံစာ ဘာသာပြန်ကိရိယာ — ミャンマースタッフ向け</p>
+
+    <!-- モード切替タブ -->
+    <div class="mode-tabs no-print">
+        <button class="mode-tab active" onclick="switchMode('free')" id="tab_free">
+            APIなし（無料）<br>
+            <span style="font-size:0.73rem;font-weight:normal;">貼り付け → 番号で自動分割 → 翻訳</span>
+        </button>
+        <button class="mode-tab" onclick="switchMode('api')" id="tab_api">
+            Claude API <span class="badge">高精度</span><br>
+            <span style="font-size:0.73rem;font-weight:normal;">AIが内容を読んで自動分類・翻訳</span>
+        </button>
+    </div>
+
+    <!-- APIキーエリア（APIモードのみ） -->
+    <div class="api-section no-print" id="apiSection">
+        <div class="api-row">
+            <label>🔑 Claude APIキー</label>
+            <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
+            <button class="save-btn" onclick="saveKey()">保存</button>
+        </div>
+        <p class="api-note">※ キーはこの端末にのみ保存されます。外部送信はAIへの送信のみです。</p>
+    </div>
+
+    <!-- 共通 入力エリア -->
+    <div class="no-print">
+        <label class="input-label">📋 日報テキストを貼り付けてください（Excel・ドラッグ&ドロップ対応）</label>
+        <textarea id="inputText"
+            placeholder="ここに日報の全文を貼り付けてください。&#10;&#10;【APIなしモード】&#10;  「1. 外出スケジュール」「2. 体調管理…」のように&#10;  番号見出しが含まれていると自動で分割します。&#10;&#10;【Claude APIモード】&#10;  見出しがなくても AIが内容を読んで自動分類します。&#10;&#10;.xlsx / .csv ファイルはドラッグ＆ドロップで読み込めます。"
+            ondragover="handleDragOver(event)"
+            ondragleave="handleDragLeave(event)"
+            ondrop="handleDrop(event)"></textarea>
+        <p class="drop-hint">💡 .xlsx / .csv ファイルをドロップすると自動読み込みできます</p>
+
+        <!-- APIなしモード ボタン -->
+        <button class="btn-run free" id="runBtn_free" onclick="runFreeMode()">
+            番号で自動分割してミャンマー語に翻訳する（無料）
+        </button>
+        <!-- APIモード ボタン -->
+        <button class="btn-run api" id="runBtn_api" style="display:none;" onclick="runApiMode()">
+            AIで自動分類・翻訳する (AI ဘာသာပြန်မည်)
+        </button>
+    </div>
+
+    <!-- ローディング -->
+    <div class="loading" id="loading">
+        <span class="spinner"></span><span id="loadingMsg">処理中...</span>
+    </div>
+
+    <!-- エラー -->
+    <div class="error-msg" id="errorMsg"></div>
+
+    <!-- 出力エリア（共通） -->
+    <div id="outputArea">
+        <div class="output-header">
+            <div class="qr-area">
+                <div id="qrCode"></div>
+                <p>スマホで読む</p>
+            </div>
+            <h2>နေ့စဉ် အစီရင်ခံစာ (日報)</h2>
+            <div class="output-date" id="outputDate"></div>
+            <div style="clear:both;"></div>
+        </div>
+
+        <div class="report-card">
+            <div class="label-group">
+                <span class="label-my">ယနေ့ အပြင်ထွက်မည့် အစီအစဉ်</span>
+                <span class="label-ja">今日のご利用者の外出スケジュール</span>
+            </div>
+            <div id="out_outing" class="section-body"></div>
+        </div>
+        <div class="report-card">
+            <div class="label-group">
+                <span class="label-my">ကျန်းမာရေး စောင့်ကြည့်ရန် လိုအပ်သူများ</span>
+                <span class="label-ja">体調管理の必要なご利用者</span>
+            </div>
+            <div id="out_health" class="section-body"></div>
+        </div>
+        <div class="report-card">
+            <div class="label-group">
+                <span class="label-my">အခန်း ပတ်ဝန်းကျင် ပြောင်းလဲသွားသူများ</span>
+                <span class="label-ja">居室環境の変わったご利用者</span>
+            </div>
+            <div id="out_room" class="section-body"></div>
+        </div>
+        <div class="report-card">
+            <div class="label-group">
+                <span class="label-my">ရေချိုးမည့် အစီအစဉ်</span>
+                <span class="label-ja">入浴予定</span>
+            </div>
+            <div id="out_bath" class="section-body"></div>
+        </div>
+        <div class="report-card">
+            <div class="label-group">
+                <span class="label-my">အသစ်ဝင်ရောက်လာသူများ၏ အချက်အလက်</span>
+                <span class="label-ja">新入所のご利用者情報</span>
+            </div>
+            <div id="out_new" class="section-body"></div>
+        </div>
+        <div class="report-card">
+            <div class="label-group">
+                <span class="label-my">ဆက်လက် ဆောင်ရွက်ရန် အကြောင်းကြားစာများ</span>
+                <span class="label-ja">継続中の連絡事項</span>
+            </div>
+            <div id="out_ongoing" class="section-body"></div>
+        </div>
+        <div class="report-card">
+            <div class="label-group">
+                <span class="label-my">အခြား အချက်အလက်များ</span>
+                <span class="label-ja">その他の連絡事項</span>
+            </div>
+            <div id="out_other" class="section-body"></div>
+        </div>
+    </div>
+
+    <div class="action-btns no-print" id="actionBtns" style="display:none;">
+        <button class="line-btn" onclick="shareToLine()">📤 LINEで送る</button>
+        <button class="print-btn" onclick="window.print()">🖨️ 印刷する</button>
+    </div>
+</div>
+
+<!-- パッケージQRパネル（ツールページをスマホで開く） -->
+<div class="pkg-qr-panel no-print">
+    <h2 class="pkg-qr-title">このツールをスマホで開く</h2>
+    <div id="pkgQrMount"></div>
+</div>
+
+<script>
+const STORAGE_KEY = 'myanmar_tool_api_key';
+
+window.addEventListener('load', () => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) document.getElementById('apiKey').value = saved;
+});
+
+// ===== モード切替 =====
+function switchMode(mode) {
+    document.getElementById('tab_free').classList.toggle('active', mode === 'free');
+    document.getElementById('tab_api').classList.toggle('active', mode === 'api');
+    document.getElementById('apiSection').classList.toggle('visible', mode === 'api');
+    document.getElementById('runBtn_free').style.display = mode === 'free' ? 'block' : 'none';
+    document.getElementById('runBtn_api').style.display  = mode === 'api'  ? 'block' : 'none';
+    hideError();
+}
+
+function saveKey() {
+    const key = document.getElementById('apiKey').value.trim();
+    if (!key.startsWith('sk-ant-')) { showError('APIキーは sk-ant- で始まる必要があります。'); return; }
+    localStorage.setItem(STORAGE_KEY, key);
+    alert('APIキーを保存しました。');
+}
+
+// ===== ドラッグ&ドロップ =====
+function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function handleDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) readExcel(file);
+    else if (name.endsWith('.csv')) readCsv(file);
+    else showError('対応ファイル: .xlsx / .xls / .csv のみです。');
+}
+function readExcel(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const wb = XLSX.read(e.target.result, { type: 'binary' });
+            let text = '';
+            wb.SheetNames.forEach(n => { text += XLSX.utils.sheet_to_csv(wb.Sheets[n]) + '\n'; });
+            document.getElementById('inputText').value = text.trim();
+        } catch (err) { showError('Excel読み込み失敗: ' + err.message); }
+    };
+    reader.readAsBinaryString(file);
+}
+function readCsv(file) {
+    const reader = new FileReader();
+    reader.onload = e => { document.getElementById('inputText').value = e.target.result.trim(); };
+    reader.readAsText(file, 'UTF-8');
+}
+
+// ===== 番号見出しによる自動分割 =====
+// 全角・半角数字＋区切り文字（1. 1） 1、１．など）でセクションを検出する
+const SECTION_PATTERNS = [
+    { key: 'outing',  nums: ['1','１'], keywords: ['外出'] },
+    { key: 'health',  nums: ['2','２'], keywords: ['体調'] },
+    { key: 'room',    nums: ['3','３'], keywords: ['居室'] },
+    { key: 'bath',    nums: ['4','４'], keywords: ['入浴'] },
+    { key: 'new',     nums: ['5','５'], keywords: ['新入所','新規入所'] },
+    { key: 'ongoing', nums: ['6','６'], keywords: ['継続'] },
+    { key: 'other',   nums: ['7','７'], keywords: ['その他'] },
+];
+
+function splitByHeaders(text) {
+    const lines = text.split('\n');
+    const result = { outing:'', health:'', room:'', bath:'', new:'', ongoing:'', other:'' };
+    let currentKey = null;
+    const buffer = {};
+
+    // 各行をセクションに振り分け
+    for (const line of lines) {
+        const detected = detectSectionHeader(line);
+        if (detected) {
+            currentKey = detected;
+            if (!buffer[currentKey]) buffer[currentKey] = [];
+        } else if (currentKey) {
+            buffer[currentKey] = buffer[currentKey] || [];
+            buffer[currentKey].push(line);
+        }
+    }
+
+    // バッファをresultへ変換（空白行を除いた本文のみ）
+    for (const [key, lines] of Object.entries(buffer)) {
+        result[key] = lines.join('\n').replace(/^\n+|\n+$/g, '').trim();
+    }
+    return result;
+}
+
+function detectSectionHeader(line) {
+    const t = line.trim();
+    for (const sec of SECTION_PATTERNS) {
+        for (const num of sec.nums) {
+            // 「1.」「1．」「1）」「1、」「1 」で始まる行
+            if (new RegExp(`^${num}[.．）、\\s]`).test(t)) return sec.key;
+        }
+        // キーワードマッチ（見出し行らしい短い行のみ）
+        if (t.length < 30 && sec.keywords.some(kw => t.includes(kw))) return sec.key;
+    }
+    return null;
+}
+
+// ===== MyMemory翻訳（無料・500文字/リクエスト制限に対応） =====
+async function myMemoryTranslate(text) {
+    if (!text.trim()) return '';
+    const LIMIT = 480;
+    const lines = text.split('\n');
+    const chunks = [];
+    let cur = '';
+    for (const line of lines) {
+        const next = cur ? cur + '\n' + line : line;
+        if (next.length > LIMIT && cur) { chunks.push(cur.trim()); cur = line; }
+        else cur = next;
+    }
+    if (cur.trim()) chunks.push(cur.trim());
+
+    const parts = [];
+    for (const chunk of chunks) {
+        try {
+            const res = await fetch(
+                `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=ja|my`
+            );
+            const data = await res.json();
+            parts.push(data.responseData?.translatedText || chunk);
+        } catch { parts.push(chunk); }
+    }
+    return parts.join('\n');
+}
+
+// ===== APIなしモード 実行 =====
+async function runFreeMode() {
+    hideError();
+    const text = document.getElementById('inputText').value.trim();
+    if (!text) { showError('日報テキストを貼り付けてください。'); return; }
+
+    setLoading(true, '自動分割・翻訳中... (ဘာသာပြန်နေပါသည်...)');
+
+    const sections = splitByHeaders(text);
+
+    // 何も分割できなかった場合はその他へ
+    const hasAny = Object.values(sections).some(v => v);
+    if (!hasAny) sections.other = text;
+
+    // 各セクションを翻訳
+    const translated = {};
+    const keys = ['outing','health','room','bath','new','ongoing','other'];
+    for (const k of keys) {
+        translated[k] = sections[k] ? await myMemoryTranslate(sections[k]) : '';
+    }
+
+    setLoading(false);
+    renderOutput(translated);
+}
+
+// ===== Claude APIモード 実行 =====
+async function runApiMode() {
+    hideError();
+    const text = document.getElementById('inputText').value.trim();
+    const key  = document.getElementById('apiKey').value.trim();
+    if (!text) { showError('日報テキストを貼り付けてください。'); return; }
+    if (!key)  { showError('Claude APIキーを入力してください。'); return; }
+    localStorage.setItem(STORAGE_KEY, key);
+
+    setLoading(true, 'AIが分類・翻訳中... (AI ဘာသာပြန်နေပါသည်...)');
+
+    const systemPrompt = `あなたは介護施設の日本語日報をミャンマー語スタッフ向けに翻訳・整理するアシスタントです。
+
+入力テキストを読み取り7カテゴリに分類してください。
+各カテゴリは利用者ごとに箇条書きで要約し、全文をミャンマー語（ビルマ語）に翻訳して出力してください。
+該当内容がないカテゴリは空文字 "" にしてください。
+
+注意点：
+- outing：時間・場所・詳細を利用者ごとに
+- health：症状・対応を利用者ごとに
+- room：変化内容を利用者ごとに
+- bath：優先順位・注意事項を含める
+- newResident：入所日時・注意点を記載
+- ongoing：開始日・リスクを含める
+- other：上記以外の連絡事項
+
+JSON形式のみで出力（他の文章不要）：
+{"outing":"...","health":"...","room":"...","bath":"...","newResident":"...","ongoing":"...","other":"..."}`;
+
+    try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'x-api-key': key,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+                'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            body: JSON.stringify({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 2048,
+                system: systemPrompt,
+                messages: [{ role: 'user', content: text }]
+            })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error?.message || `APIエラー (${res.status})`);
+        }
+        const data = await res.json();
+        const raw  = data.content?.[0]?.text || '';
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error('AIの返答からJSONを取得できませんでした。\n返答:\n' + raw.slice(0, 300));
+        const p = JSON.parse(match[0]);
+        renderOutput({
+            outing: p.outing||'', health: p.health||'', room: p.room||'',
+            bath: p.bath||'', new: p.newResident||'', ongoing: p.ongoing||'', other: p.other||''
+        });
+    } catch (e) {
+        showError(e.message || '予期しないエラーが発生しました。');
+    } finally {
+        setLoading(false);
+    }
+}
+
+// ===== 出力描画（共通） =====
+function renderOutput(data) {
+    const map = { outing:'out_outing', health:'out_health', room:'out_room',
+                  bath:'out_bath', new:'out_new', ongoing:'out_ongoing', other:'out_other' };
+    let qrContent = '';
+    Object.entries(map).forEach(([k, id]) => {
+        const el = document.getElementById(id);
+        const val = (data[k] || '').trim();
+        if (val) {
+            el.textContent = val;
+            el.classList.remove('empty-notice');
+            qrContent += val + '\n\n';
+        } else {
+            el.textContent = '（該当なし / မရှိပါ）';
+            el.classList.add('empty-notice');
+        }
+    });
+
+    const now = new Date();
+    document.getElementById('outputDate').textContent =
+        now.toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+
+    generateQR(qrContent.trim());
+    document.getElementById('outputArea').style.display  = 'block';
+    document.getElementById('actionBtns').style.display  = 'flex';
+    document.getElementById('outputArea').scrollIntoView({ behavior: 'smooth' });
+}
+
+function generateQR(text) {
+    const el = document.getElementById('qrCode');
+    el.innerHTML = '';
+    const content = text.length > 2000 ? text.slice(0, 2000) + '…' : text;
+    try {
+        new QRCode(el, { text: content || 'No content', width: 120, height: 120,
+                         correctLevel: QRCode.CorrectLevel.L });
+    } catch { el.textContent = 'QR生成失敗'; }
+}
+
+function setLoading(on, msg) {
+    document.getElementById('loading').style.display = on ? 'block' : 'none';
+    if (msg) document.getElementById('loadingMsg').textContent = msg;
+    document.getElementById('runBtn_free').disabled = on;
+    document.getElementById('runBtn_api').disabled  = on;
+}
+function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg; el.style.display = 'block';
+}
+function hideError() { document.getElementById('errorMsg').style.display = 'none'; }
+
+// ===== LINEで送る =====
+function shareToLine() {
+    const sections = [
+        { id: 'out_outing',  label: '【外出スケジュール / ယနေ့ အပြင်ထွက်မည့် အစီအစဉ်】' },
+        { id: 'out_health',  label: '【体調管理 / ကျန်းမာရေး စောင့်ကြည့်ရန်】' },
+        { id: 'out_room',    label: '【居室環境 / အခန်း ပတ်ဝန်းကျင်】' },
+        { id: 'out_bath',    label: '【入浴予定 / ရေချိုးမည့် အစီအစဉ်】' },
+        { id: 'out_new',     label: '【新入所者 / အသစ်ဝင်ရောက်လာသူ】' },
+        { id: 'out_ongoing', label: '【継続連絡 / ဆက်လက် ဆောင်ရွက်ရန်】' },
+        { id: 'out_other',   label: '【その他 / အခြား】' },
+    ];
+
+    const date = document.getElementById('outputDate').textContent;
+    let text = `နေ့စဉ် အစီရင်ခံစာ (日報)\n${date}\n\n`;
+
+    sections.forEach(({ id, label }) => {
+        const el = document.getElementById(id);
+        const val = el.textContent.trim();
+        if (val && !el.classList.contains('empty-notice')) {
+            text += label + '\n' + val + '\n\n';
+        }
+    });
+
+    const url = 'https://line.me/R/share?text=' + encodeURIComponent(text.trim());
+    window.open(url, '_blank');
+}
+
+// ===== パッケージQRパネル（qr-content.html 移植） =====
+(function () {
+    if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        var panel = document.querySelector('.pkg-qr-panel');
+        if (panel) panel.style.display = 'none';
+        return;
+    }
+
+    var mount = document.getElementById('pkgQrMount');
+    var pageUrl = window.location.href;
+    var QR_URL_KEY = 'myanmar_tool_qr_lan_url';
+
+    function blockedReason(url) {
+        if (!url) return 'URLがありません。';
+        if (/^file:/i.test(url)) return 'PC内ファイルとして開かれています。Pythonサーバー（python -m http.server 8000）で起動するとQRが生成されます。';
+        if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(url)) return 'localhost はスマホから直接開けません。LAN内IPアドレス（例: 192.168.x.x:8000）を使ってください。';
+        return '';
+    }
+
+    function buildQrUrl(url) {
+        return 'https://api.qrserver.com/v1/create-qr-code/?' +
+            new URLSearchParams({ size:'600x600', margin:'48', ecc:'H', color:'000000', bgcolor:'FFFFFF', data: url }).toString();
+    }
+
+    function showQrFromUrl(targetUrl) {
+        mount.innerHTML =
+            '<img class="pkg-qr-image" alt="QRコード">' +
+            '<p class="pkg-qr-url"></p>' +
+            '<button type="button" class="pkg-qr-link" id="pkgChangeBtn" style="background:#666;margin-top:8px;">URLを変更</button>';
+        mount.querySelector('.pkg-qr-image').src = buildQrUrl(targetUrl);
+        mount.querySelector('.pkg-qr-url').textContent = targetUrl;
+        document.getElementById('pkgChangeBtn').addEventListener('click', showInputForm);
+    }
+
+    function showInputForm() {
+        var saved = localStorage.getItem(QR_URL_KEY) || '';
+        mount.innerHTML =
+            '<div class="pkg-qr-input-row">' +
+                '<input id="pkgUrlInput" type="url" placeholder="http://192.168.x.x:8000/ミャンマースタッフ用_v2.html" value="">' +
+                '<button type="button" class="pkg-qr-link" id="pkgGenBtn">QR生成</button>' +
+            '</div>' +
+            '<p class="pkg-qr-url">例: http://192.168.1.10:8000/ミャンマースタッフ用_v2.html</p>';
+        document.getElementById('pkgUrlInput').value = saved;
+        document.getElementById('pkgGenBtn').addEventListener('click', function () {
+            var url = document.getElementById('pkgUrlInput').value.trim();
+            if (!url) { alert('URLを入力してください'); return; }
+            localStorage.setItem(QR_URL_KEY, url);
+            showQrFromUrl(url);
+        });
+    }
+
+    var reason = blockedReason(pageUrl);
+    if (reason) {
+        var saved = localStorage.getItem(QR_URL_KEY);
+        if (saved) {
+            showQrFromUrl(saved);
+        } else {
+            mount.innerHTML = '<div class="pkg-qr-placeholder">' + reason + '</div>';
+            mount.innerHTML += '<div style="margin-top:12px;"><button type="button" class="pkg-qr-link" id="pkgInputBtn">LAN IPを入力してQRを生成</button></div>';
+            document.getElementById('pkgInputBtn').addEventListener('click', showInputForm);
+        }
+        return;
+    }
+
+    // 本番URL（HTTPサーバー経由）の場合はそのままQR生成
+    mount.innerHTML =
+        '<img class="pkg-qr-image" alt="このページを開くQRコード">' +
+        '<div><a class="pkg-qr-link" target="_blank" rel="noopener">開く</a></div>' +
+        '<p class="pkg-qr-url"></p>';
+    mount.querySelector('.pkg-qr-image').src = buildQrUrl(pageUrl);
+    mount.querySelector('.pkg-qr-link').href = pageUrl;
+    mount.querySelector('.pkg-qr-url').textContent = pageUrl;
+}());
+</script>
+
+</body>
+</html>
