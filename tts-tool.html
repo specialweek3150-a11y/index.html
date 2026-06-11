@@ -280,8 +280,11 @@
 /* =========================================================
    設定値
 ========================================================= */
-const TTS_ENDPOINT = 'https://api.streamelements.com/kappa/v2/speech';
-const CHUNK_LIMIT = 280;          // 1リクエストあたりの安全な文字数（StreamElements/Pollyの制限対策）
+const EDGE_TTS_WSS_URL = 'wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1';
+const EDGE_TTS_TRUSTED_CLIENT_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
+const EDGE_TTS_GEC_VERSION = '1-130.0.2849.68';
+const EDGE_TTS_TIMEOUT_MS = 20000;  // 1リクエストあたりのタイムアウト
+const CHUNK_LIMIT = 1000;          // 1リクエストあたりの安全な文字数
 const DOWNLOAD_INTERVAL_MS = 3000; // ダウンロード間のインターバル
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 1500;
