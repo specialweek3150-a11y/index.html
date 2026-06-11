@@ -117,6 +117,19 @@
     .btn-download { background: var(--primary); }
     .btn-delete { background: #999; }
     .btn-clear { background: #999; margin-top: 8px; }
+    .btn-test { background: #17a2b8; }
+
+    .test-result {
+        display: none;
+        margin-top: 8px;
+        padding: 10px 12px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+    .test-result.ok { display: block; background: #eafaf1; color: #1e7e34; border: 1px solid #c3e6cb; }
+    .test-result.ng { display: block; background: #fdecea; color: var(--red); border: 1px solid #f5c6c6; }
 
     /* 進捗 */
     #progressSection { display: none; }
@@ -232,6 +245,10 @@
             </select>
         </div>
         <p class="hint">変換は1件ごとに音声を生成し、その都度ダウンロードへ流します（3秒間隔）。件数が多いほど時間がかかります。</p>
+        <div class="controls-row">
+            <button class="btn-test btn-small" onclick="runConnectionTest()">🔍 接続テスト（1件だけ試す）</button>
+        </div>
+        <div id="testResult" class="test-result"></div>
         <button class="btn-start" id="startBtn" onclick="startBulkConversion()">🎙 一括変換してダウンロード開始</button>
         <div class="controls-row">
             <button class="btn-cancel" id="cancelBtn" onclick="cancelBulkConversion()" disabled>■ 停止する</button>
@@ -400,13 +417,54 @@ function buildFilename(idx, text) {
 ========================================================= */
 async function fetchTtsChunk(text, voice) {
     const url = TTS_ENDPOINT + '?' + new URLSearchParams({ voice, text }).toString();
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`TTS APIエラー（HTTP ${res.status}）`);
+    let res;
+    try {
+        res = await fetch(url);
+    } catch (err) {
+        throw new Error(`通信に失敗しました（CORSまたはネットワークの問題の可能性）: ${err.message}`);
+    }
+    if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.text()).slice(0, 120); } catch {}
+        throw new Error(`TTS APIエラー HTTP ${res.status}${detail ? ' / ' + detail : ''}`);
+    }
     const blob = await res.blob();
-    if (!blob || blob.size === 0 || !blob.type.startsWith('audio')) {
-        throw new Error('音声データの取得に失敗しました（空データ）');
+    if (!blob || blob.size === 0) {
+        throw new Error('音声データが空でした（0バイト）');
+    }
+    if (!blob.type.startsWith('audio')) {
+        throw new Error(`想定外のレスポンス形式（type: ${blob.type || '不明'}, size: ${blob.size}バイト）`);
     }
     return blob;
+}
+
+// 接続テスト：1件だけ短いテキストで取得し、結果（成功/失敗の詳細）を画面に表示する
+async function runConnectionTest() {
+    const resultEl = document.getElementById('testResult');
+    resultEl.className = 'test-result';
+    resultEl.style.display = 'block';
+    resultEl.textContent = '🔄 テスト中...';
+
+    const voice = document.getElementById('fileVoice').value;
+    try {
+        const blob = await fetchTtsChunk('テスト', voice);
+        resultEl.className = 'test-result ok';
+        resultEl.textContent = `✅ 成功: 音声データを取得できました（type: ${blob.type}, size: ${blob.size}バイト）`;
+
+        const playBtn = document.createElement('button');
+        playBtn.className = 'btn-small btn-preview';
+        playBtn.style.marginTop = '6px';
+        playBtn.style.display = 'block';
+        playBtn.textContent = '▶ 再生して確認';
+        playBtn.onclick = () => {
+            const url = URL.createObjectURL(blob);
+            new Audio(url).play();
+        };
+        resultEl.appendChild(playBtn);
+    } catch (err) {
+        resultEl.className = 'test-result ng';
+        resultEl.textContent = `❌ 失敗: ${err.message}`;
+    }
 }
 
 // エラー時のリトライ処理。指数バックオフで最大MAX_RETRIES回まで再試行する。
