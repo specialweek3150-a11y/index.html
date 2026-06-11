@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>貼って即しゃべる音声ツール v4（スマホ安全版）</title>
+<style>
+    :root {
+        --primary: #1a73e8;
+        --green: #28a745;
+        --red: #d32f2f;
+        --orange: #e8821a;
+        --border: #ddd;
+        --bg: #f0f2f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        background: var(--bg);
+        padding: 16px;
+        color: #333;
+        margin: 0;
+    }
+    .container {
+        max-width: 720px;
+        margin: auto;
+        background: #fff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    h1 {
+        text-align: center;
+        font-size: 1.25rem;
+        color: var(--primary);
+        margin: 0 0 4px;
+    }
+    .subtitle {
+        text-align: center;
+        font-size: 0.8rem;
+        color: #888;
+        margin-bottom: 14px;
+    }
+    .info-box {
+        background: #eef5ff;
+        border: 1px solid #cfe1fb;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 0.78rem;
+        color: #2a4a73;
+        line-height: 1.7;
+        margin-bottom: 16px;
+    }
+    .info-box b { color: var(--primary); }
+
+    section {
+        margin-bottom: 18px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #eee;
+    }
+    section:last-of-type { border-bottom: none; }
+
+    .input-label {
+        display: block;
+        font-weight: bold;
+        font-size: 0.9rem;
+        margin-bottom: 6px;
+    }
+    .hint { font-size: 0.75rem; color: #999; margin: 4px 0 10px; }
+
+    #inputText {
+        width: 100%;
+        min-height: 160px;
+        padding: 12px;
+        border: 2px solid var(--border);
+        border-radius: 8px;
+        font-size: 14px;
+        resize: vertical;
+    }
+    #inputText:focus { outline: none; border-color: var(--primary); }
+    #inputText:disabled { background: #f5f5f5; color: #999; }
+
+    .controls-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-top: 10px;
+    }
+    .controls-row label { font-size: 0.8rem; color: #555; white-space: nowrap; }
+    select, input[type="range"] {
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 13px;
+    }
+
+    button {
+        padding: 11px 16px;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.92rem;
+        font-weight: bold;
+        cursor: pointer;
+        color: #fff;
+        transition: background 0.2s, opacity 0.2s;
+    }
+    button:disabled { background: #aaa !important; cursor: not-allowed; opacity: 0.7; }
+    .btn-preview { background: #6c757d; }
+    .btn-preview:hover:not(:disabled) { background: #5a6268; }
+    .btn-stop { background: #888; }
+    .btn-start { background: var(--green); width: 100%; padding: 13px; }
+    .btn-start:hover:not(:disabled) { background: #218838; }
+    .btn-cancel { background: var(--red); }
+    .btn-small { padding: 6px 12px; font-size: 0.78rem; border-radius: 5px; }
+    .btn-retry { background: var(--orange); }
+    .btn-download { background: var(--primary); }
+    .btn-delete { background: #999; }
+    .btn-clear { background: #999; margin-top: 8px; }
+
+    /* 進捗 */
+    #progressSection { display: none; }
+    .progress-bar {
+        width: 100%;
+        height: 10px;
+        background: #e9ecef;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-bottom: 8px;
+    }
+    #progressFill {
+        height: 100%;
+        width: 0%;
+        background: var(--primary);
+        transition: width 0.3s ease;
+    }
+    #progressText { font-size: 0.85rem; color: #555; margin: 0 0 4px; }
+    #intervalNote { font-size: 0.78rem; color: var(--orange); min-height: 1.2em; margin: 0 0 8px; }
+    #itemList {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        max-height: 220px;
+        overflow-y: auto;
+        border: 1px solid #eee;
+        border-radius: 6px;
+    }
+    #itemList li {
+        padding: 7px 10px;
+        font-size: 0.82rem;
+        border-bottom: 1px solid #f2f2f2;
+    }
+    #itemList li:last-child { border-bottom: none; }
+    .item-processing { color: var(--primary); background: #f0f6ff; }
+    .item-retrying { color: var(--orange); background: #fff8ec; }
+    .item-done { color: var(--green); }
+    .item-failed { color: var(--red); background: #fdecea; }
+
+    /* キャッシュ一覧 */
+    #cacheSection { display: none; }
+    #cacheList { list-style: none; padding: 0; margin: 0 0 8px; }
+    .cache-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 10px;
+        font-size: 0.82rem;
+        border: 1px solid #eee;
+        border-radius: 6px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+    }
+    .cache-item span { flex: 1; min-width: 150px; word-break: break-all; }
+    .cache-item .btn-group { display: flex; gap: 6px; }
+
+    /* エラー */
+    .error-msg {
+        display: none;
+        background: #fdecea;
+        color: var(--red);
+        border: 1px solid #f5c6c6;
+        border-radius: 6px;
+        padding: 10px 14px;
+        margin: 10px 0;
+        font-size: 0.85rem;
+        white-space: pre-wrap;
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1>貼って即しゃべる音声ツール v4</h1>
+    <p class="subtitle">スマホ（iOS Safari）でも安全な、メモリクラッシュ対策版</p>
+
+    <div class="info-box">
+        <b>このツールの仕組み（v4）</b><br>
+        ・1行 = 1音声ファイルとして変換します。<br>
+        ・<b>JSZipによる一括圧縮は行いません</b>（大量データ保持によるクラッシュを避けるため）。<br>
+        ・変換した音声は一旦 IndexedDB（端末内ストレージ）に一時保存し、<b>1件ずつ自動ダウンロード→キャッシュ削除→3秒待機</b>を繰り返します。常にメモリ上の音声データは1件分だけです。<br>
+        ・失敗・未ダウンロードのファイルは下部の一覧からいつでも個別に再試行・再ダウンロードできます。
+    </div>
+
+    <!-- 即時プレビュー -->
+    <section>
+        <label class="input-label">📋 テキストを貼り付け</label>
+        <textarea id="inputText" placeholder="ここにテキストを貼り付けてください。&#10;&#10;1行＝1ファイルとして一括変換されます。&#10;空行は無視されます。"></textarea>
+        <p class="hint">💡「すぐ読み上げる」はブラウザ内蔵の音声合成（無料・オフライン）でその場で再生確認できます。</p>
+        <div class="controls-row">
+            <label>声:</label>
+            <select id="previewVoice"></select>
+            <label>速さ:</label>
+            <input type="range" id="previewRate" min="0.5" max="2" step="0.1" value="1">
+            <button class="btn-preview" onclick="previewSpeak()">▶ すぐ読み上げる</button>
+            <button class="btn-stop" onclick="stopPreview()">■ 停止</button>
+        </div>
+    </section>
+
+    <!-- 一括変換 -->
+    <section>
+        <label class="input-label">🎙 一括変換（音声ファイル化してダウンロード）</label>
+        <div class="controls-row">
+            <label>変換ボイス:</label>
+            <select id="fileVoice">
+                <option value="Mizuki">日本語（女性 / Mizuki）</option>
+                <option value="Takumi">日本語（男性 / Takumi）</option>
+                <option value="Salli">English US（女性 / Salli）</option>
+                <option value="Matthew">English US（男性 / Matthew）</option>
+                <option value="Brian">English UK（男性 / Brian）</option>
+                <option value="Seoyeon">한국어（여성 / Seoyeon）</option>
+            </select>
+        </div>
+        <p class="hint">変換は1件ごとに音声を生成し、その都度ダウンロードへ流します（3秒間隔）。件数が多いほど時間がかかります。</p>
+        <button class="btn-start" id="startBtn" onclick="startBulkConversion()">🎙 一括変換してダウンロード開始</button>
+        <div class="controls-row">
+            <button class="btn-cancel" id="cancelBtn" onclick="cancelBulkConversion()" disabled>■ 停止する</button>
+        </div>
+    </section>
+
+    <!-- エラー -->
+    <div class="error-msg" id="errorMsg"></div>
+
+    <!-- 進捗表示 -->
+    <section id="progressSection">
+        <label class="input-label">進捗</label>
+        <div class="progress-bar"><div id="progressFill"></div></div>
+        <p id="progressText">0 / 0 件</p>
+        <p id="intervalNote"></p>
+        <ul id="itemList"></ul>
+    </section>
+
+    <!-- 未ダウンロード・失敗キャッシュ -->
+    <section id="cacheSection">
+        <label class="input-label">📦 未ダウンロード・失敗ファイル一覧（端末内に一時保存中）</label>
+        <p class="hint">自動ダウンロードがブロックされた場合や変換に失敗した場合は、ここから個別にやり直せます。</p>
+        <ul id="cacheList"></ul>
+        <button class="btn-clear btn-small" onclick="clearCache()">🗑 キャッシュを全削除</button>
+    </section>
+</div>
+
+<script>
+/* =========================================================
+   設定値
+========================================================= */
+const TTS_ENDPOINT = 'https://api.streamelements.com/kappa/v2/speech';
+const CHUNK_LIMIT = 280;          // 1リクエストあたりの安全な文字数（StreamElements/Pollyの制限対策）
+const DOWNLOAD_INTERVAL_MS = 3000; // ダウンロード間のインターバル
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 1500;
+
+const DB_NAME = 'tts_tool_cache_v4';
+const DB_VERSION = 1;
+const STORE_NAME = 'audioFiles';
+
+let isCancelled = false;
+
+/* =========================================================
+   IndexedDB ラッパー（一時キャッシュ）
+========================================================= */
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function dbPut(record) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(record);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+async function dbGet(id) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function dbGetAll() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function dbDelete(id) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+async function dbClear() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+/* =========================================================
+   汎用ユーティリティ
+========================================================= */
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function sleepWithCountdown(ms) {
+    const seconds = Math.ceil(ms / 1000);
+    for (let s = seconds; s > 0; s--) {
+        if (isCancelled) break;
+        setStatusNote(`次のファイルまで ${s} 秒...`);
+        await sleep(1000);
+    }
+    setStatusNote('');
+}
+
+/* =========================================================
+   テキスト分割（1行 = 1ファイル、長文はチャンク分割）
+========================================================= */
+function splitIntoItems(rawText) {
+    return rawText.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .map((line, idx) => ({
+            index: idx,
+            text: line,
+            filename: buildFilename(idx, line),
+            chunks: splitIntoChunks(line, CHUNK_LIMIT),
+        }));
+}
+
+function splitIntoChunks(text, limit) {
+    if (text.length <= limit) return [text];
+    const chunks = [];
+    let rest = text;
+    while (rest.length > limit) {
+        let cut = rest.lastIndexOf('。', limit);
+        if (cut < limit * 0.5) cut = rest.lastIndexOf('、', limit);
+        if (cut < limit * 0.5) cut = limit;
+        else cut += 1;
+        chunks.push(rest.slice(0, cut));
+        rest = rest.slice(cut);
+    }
+    if (rest) chunks.push(rest);
+    return chunks;
+}
+
+function buildFilename(idx, text) {
+    const safe = text.replace(/[\\/:*?"<>|]/g, '').slice(0, 20).trim() || 'audio';
+    return String(idx + 1).padStart(3, '0') + '_' + safe + '.mp3';
+}
+
+/* =========================================================
+   TTS取得（リトライ機構を独立関数として分離）
+========================================================= */
+async function fetchTtsChunk(text, voice) {
+    const url = TTS_ENDPOINT + '?' + new URLSearchParams({ voice, text }).toString();
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`TTS APIエラー（HTTP ${res.status}）`);
+    const blob = await res.blob();
+    if (!blob || blob.size === 0 || !blob.type.startsWith('audio')) {
+        throw new Error('音声データの取得に失敗しました（空データ）');
+    }
+    return blob;
+}
+
+// エラー時のリトライ処理。指数バックオフで最大MAX_RETRIES回まで再試行する。
+async function fetchTtsChunkWithRetry(text, voice, onRetry) {
+    let lastError;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            return await fetchTtsChunk(text, voice);
+        } catch (err) {
+            lastError = err;
+            if (attempt < MAX_RETRIES) {
+                if (onRetry) onRetry(attempt, err);
+                await sleep(RETRY_BASE_DELAY_MS * attempt);
+            }
+        }
+    }
+    throw lastError;
+}
+
+// 1アイテム分のチャンクを順次取得して結合する（同時に保持するBlobは最小限）
+async function convertItemToBlob(item, voice, onChunkRetry) {
+    const blobs = [];
+    for (const chunk of item.chunks) {
+        const blob = await fetchTtsChunkWithRetry(chunk, voice, onChunkRetry);
+        blobs.push(blob);
+    }
+    return blobs.length === 1 ? blobs[0] : new Blob(blobs, { type: 'audio/mpeg' });
+}
+
+/* =========================================================
+   ダウンロード処理
+========================================================= */
+function downloadBlob(blob, filename) {
+    return new Promise(resolve => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // revokeを少し遅らせ、ダウンロード開始を確実にしてからメモリを解放する
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+            resolve();
+        }, 1000);
+    });
+}
+
+/* =========================================================
+   一括変換メイン処理
+   1件ごとに「生成 → IndexedDBへ一時保存 → ダウンロード → キャッシュ削除 → 3秒待機」
+   を繰り返す。複数の音声バイナリを同時にメモリ保持しないため、
+   大量ファイルでもタブがクラッシュしにくい。
+========================================================= */
+async function startBulkConversion() {
+    hideError();
+    const rawText = document.getElementById('inputText').value;
+    const items = splitIntoItems(rawText);
+
+    if (items.length === 0) {
+        showError('変換するテキストを入力してください（1行 = 1ファイル）。');
+        return;
+    }
+    if (items.length > 30) {
+        const ok = confirm(`${items.length}件のファイルを変換します。1件あたり数秒+待機3秒かかるため、完了まで時間がかかります。続行しますか？`);
+        if (!ok) return;
+    }
+
+    isCancelled = false;
+    setUiRunning(true);
+    showProgressSection(items.length);
+
+    let successCount = 0;
+    let failCount = 0;
+    const voice = document.getElementById('fileVoice').value;
+
+    for (let i = 0; i < items.length; i++) {
+        if (isCancelled) break;
+        const item = items[i];
+        updateItemStatus(item.index, 'processing');
+        updateProgress(i, items.length, `変換中: ${item.filename}`);
+
+        try {
+            const blob = await convertItemToBlob(item, voice, (attempt) => {
+                updateItemStatus(item.index, 'retrying', `リトライ ${attempt}/${MAX_RETRIES - 1}`);
+            });
+
+            // 一時キャッシュへ保存（生成直後にメモリから切り離す）
+            await dbPut({ id: item.index, filename: item.filename, blob, status: 'ready', sourceText: item.text });
+
+            // キャッシュから読み出してダウンロード導線へ流し込む
+            const cached = await dbGet(item.index);
+            await downloadBlob(cached.blob, cached.filename);
+
+            // ダウンロード後は速やかにキャッシュを解放
+            await dbDelete(item.index);
+
+            updateItemStatus(item.index, 'done');
+            successCount++;
+        } catch (err) {
+            updateItemStatus(item.index, 'failed', err.message);
+            await dbPut({ id: item.index, filename: item.filename, status: 'failed', error: err.message, sourceText: item.text });
+            failCount++;
+        }
+
+        updateProgress(i + 1, items.length);
+
+        if (!isCancelled && i < items.length - 1) {
+            await sleepWithCountdown(DOWNLOAD_INTERVAL_MS);
+        }
+    }
+
+    setUiRunning(false);
+    await refreshCacheList();
+    finalizeProgress(successCount, failCount, isCancelled);
+}
+
+function cancelBulkConversion() {
+    isCancelled = true;
+    setStatusNote('停止しています...');
+}
+
+/* =========================================================
+   未ダウンロード／失敗キャッシュの一覧と再試行
+========================================================= */
+async function refreshCacheList() {
+    const all = await dbGetAll();
+    const listEl = document.getElementById('cacheList');
+    const section = document.getElementById('cacheSection');
+    listEl.innerHTML = '';
+
+    if (all.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = 'block';
+
+    all.sort((a, b) => a.id - b.id).forEach(rec => {
+        const li = document.createElement('li');
+        li.className = 'cache-item';
+
+        const label = document.createElement('span');
+        label.textContent = rec.status === 'failed'
+            ? `${rec.filename}（失敗: ${rec.error}）`
+            : `${rec.filename}（未ダウンロード）`;
+        li.appendChild(label);
+
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'btn-group';
+
+        if (rec.status === 'ready' && rec.blob) {
+            const dlBtn = document.createElement('button');
+            dlBtn.className = 'btn-download btn-small';
+            dlBtn.textContent = '⬇ ダウンロード';
+            dlBtn.onclick = async () => {
+                await downloadBlob(rec.blob, rec.filename);
+                await dbDelete(rec.id);
+                refreshCacheList();
+            };
+            btnGroup.appendChild(dlBtn);
+        }
+
+        if (rec.status === 'failed') {
+            const retryBtn = document.createElement('button');
+            retryBtn.className = 'btn-retry btn-small';
+            retryBtn.textContent = '🔄 再試行';
+            retryBtn.onclick = () => retryFailedItem(rec);
+            btnGroup.appendChild(retryBtn);
+        }
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn-delete btn-small';
+        delBtn.textContent = '✕';
+        delBtn.onclick = async () => { await dbDelete(rec.id); refreshCacheList(); };
+        btnGroup.appendChild(delBtn);
+
+        li.appendChild(btnGroup);
+        listEl.appendChild(li);
+    });
+}
+
+async function retryFailedItem(rec) {
+    hideError();
+    const voice = document.getElementById('fileVoice').value;
+    const item = {
+        index: rec.id,
+        text: rec.sourceText,
+        filename: rec.filename,
+        chunks: splitIntoChunks(rec.sourceText, CHUNK_LIMIT),
+    };
+    try {
+        const blob = await convertItemToBlob(item, voice);
+        await dbPut({ id: item.index, filename: item.filename, blob, status: 'ready', sourceText: item.text });
+    } catch (err) {
+        await dbPut({ id: item.index, filename: item.filename, status: 'failed', error: err.message, sourceText: item.text });
+        showError(`再試行に失敗しました: ${err.message}`);
+    }
+    await refreshCacheList();
+}
+
+async function clearCache() {
+    if (!confirm('未ダウンロード・失敗ファイルのキャッシュを全て削除します。よろしいですか？')) return;
+    await dbClear();
+    await refreshCacheList();
+}
+
+/* =========================================================
+   進捗UI
+========================================================= */
+function showProgressSection(total) {
+    document.getElementById('progressSection').style.display = 'block';
+    const list = document.getElementById('itemList');
+    list.innerHTML = '';
+    for (let i = 0; i < total; i++) {
+        const li = document.createElement('li');
+        li.id = `item_${i}`;
+        li.textContent = `${i + 1}. 待機中...`;
+        list.appendChild(li);
+    }
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('progressText').textContent = `0 / ${total} 件`;
+}
+
+function updateProgress(done, total, note) {
+    document.getElementById('progressFill').style.width = `${(done / total) * 100}%`;
+    document.getElementById('progressText').textContent = `${done} / ${total} 件` + (note ? ` - ${note}` : '');
+}
+
+function updateItemStatus(index, status, extra) {
+    const li = document.getElementById(`item_${index}`);
+    if (!li) return;
+    const labels = {
+        processing: '🔄 変換中...',
+        retrying: `⚠ ${extra || '再試行中...'}`,
+        done: '✅ 完了・ダウンロード済み',
+        failed: `❌ 失敗（${extra}）`,
+    };
+    li.className = `item-${status}`;
+    li.textContent = `${index + 1}. ${labels[status] || status}`;
+}
+
+function setStatusNote(text) {
+    document.getElementById('intervalNote').textContent = text;
+}
+
+function setUiRunning(running) {
+    document.getElementById('startBtn').disabled = running;
+    document.getElementById('cancelBtn').disabled = !running;
+    document.getElementById('inputText').disabled = running;
+}
+
+function finalizeProgress(success, fail, cancelled) {
+    const note = cancelled ? '（途中で停止しました）' : '';
+    document.getElementById('progressText').textContent =
+        `完了: 成功 ${success} 件 / 失敗 ${fail} 件 ${note}`;
+    setStatusNote('');
+}
+
+function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+function hideError() {
+    document.getElementById('errorMsg').style.display = 'none';
+}
+
+/* =========================================================
+   即時プレビュー（Web Speech API / 無料・オフライン）
+========================================================= */
+function populateSpeechVoices() {
+    const sel = document.getElementById('previewVoice');
+    const voices = speechSynthesis.getVoices();
+    if (voices.length === 0) return;
+    sel.innerHTML = '';
+    voices.forEach((v, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `${v.name} (${v.lang})`;
+        if (v.lang.startsWith('ja')) opt.selected = true;
+        sel.appendChild(opt);
+    });
+}
+if ('speechSynthesis' in window) {
+    speechSynthesis.onvoiceschanged = populateSpeechVoices;
+    populateSpeechVoices();
+}
+
+function previewSpeak() {
+    const text = document.getElementById('inputText').value.trim();
+    if (!text) { showError('テキストを入力してください。'); return; }
+    hideError();
+    speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    const voices = speechSynthesis.getVoices();
+    const sel = document.getElementById('previewVoice');
+    if (voices[sel.value]) utter.voice = voices[sel.value];
+    utter.rate = parseFloat(document.getElementById('previewRate').value);
+    speechSynthesis.speak(utter);
+}
+
+function stopPreview() {
+    speechSynthesis.cancel();
+}
+
+/* =========================================================
+   初期化（前回中断分のキャッシュを復元表示）
+========================================================= */
+window.addEventListener('load', () => {
+    refreshCacheList();
+});
+</script>
+
+</body>
+</html>
