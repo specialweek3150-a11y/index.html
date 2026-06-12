@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>何でもメンテナンスツール - SKILL・ツール総合診断</title>
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --green: #28a745;
+            --red: #d32f2f;
+            --orange: #f57c00;
+            --purple: #7b1fa2;
+            --teal: #00796b;
+            --yellow-bg: #fff9c4;
+            --border: #ddd;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+            color: #333;
+            margin: 0;
+        }
+        .container {
+            max-width: 960px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.3rem;
+            color: var(--primary);
+            margin: 0 0 4px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 0.83rem;
+            color: #888;
+            margin-bottom: 18px;
+        }
+
+        /* タブ */
+        .mode-tabs {
+            display: flex;
+            border: 2px solid var(--primary);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .mode-tab {
+            flex: 1;
+            padding: 9px 6px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: bold;
+            background: white;
+            color: var(--primary);
+            border: none;
+            line-height: 1.4;
+            transition: background 0.2s, color 0.2s;
+        }
+        .mode-tab.active { background: var(--primary); color: white; }
+        .mode-tab:not(:last-child) { border-right: 2px solid var(--primary); }
+
+        .panel { display: none; }
+        .panel.active { display: block; }
+
+        /* ダッシュボード */
+        .stats-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            flex: 1;
+            min-width: 110px;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            color: white;
+        }
+        .stat-card .num { font-size: 1.6rem; font-weight: bold; }
+        .stat-card .label { font-size: 0.72rem; opacity: 0.9; }
+        .stat-total { background: var(--primary); }
+        .stat-ok { background: var(--green); }
+        .stat-warn { background: var(--orange); }
+        .stat-alert { background: var(--red); }
+
+        .alert-box {
+            background: #fff3e0;
+            border-left: 4px solid var(--orange);
+            padding: 10px 14px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 14px;
+            font-size: 0.85rem;
+        }
+        .alert-box.critical { background: #ffebee; border-left-color: var(--red); }
+        .alert-box strong { display: block; margin-bottom: 4px; }
+
+        /* アイテムカード */
+        .item-card {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+        .item-card.health-ok { border-left: 5px solid var(--green); }
+        .item-card.health-warn { border-left: 5px solid var(--orange); }
+        .item-card.health-alert { border-left: 5px solid var(--red); }
+        .item-card.health-unknown { border-left: 5px solid #aaa; }
+        .item-name { font-weight: bold; font-size: 1rem; margin-bottom: 2px; }
+        .item-meta { font-size: 0.75rem; color: #888; margin-bottom: 6px; }
+        .item-desc { font-size: 0.85rem; white-space: pre-wrap; margin-bottom: 8px; }
+        .item-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+        .tag {
+            display: inline-block;
+            font-size: 0.68rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-right: 4px;
+            color: white;
+        }
+        .tag-skill { background: var(--purple); }
+        .tag-tool { background: var(--teal); }
+        .tag-script { background: var(--primary); }
+        .tag-workflow { background: var(--orange); }
+        .tag-other { background: #777; }
+        .tag-status { background: #555; }
+
+        /* フォーム */
+        .form-group { margin-bottom: 12px; }
+        .input-label {
+            display: block;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+        }
+        input[type="text"], select, textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        textarea { min-height: 90px; resize: vertical; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+        .form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+        .form-row .form-group { flex: 1; min-width: 160px; }
+        .hint { font-size: 0.75rem; color: #888; margin-top: 4px; }
+
+        /* ボタン */
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-green { background: var(--green); color: white; }
+        .btn-red { background: var(--red); color: white; }
+        .btn-orange { background: var(--orange); color: white; }
+        .btn-gray { background: #888; color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 0.78rem; }
+        .btn-big {
+            width: 100%;
+            padding: 16px;
+            font-size: 1.05rem;
+            margin: 14px 0;
+        }
+
+        /* プロンプト出力 */
+        .prompt-output {
+            width: 100%;
+            min-height: 260px;
+            padding: 12px;
+            border: 2px solid var(--green);
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            background: #f8fff8;
+            resize: vertical;
+            white-space: pre-wrap;
+        }
+        .copied-msg {
+            display: none;
+            color: var(--green);
+            font-weight: bold;
+            font-size: 0.85rem;
+            margin-left: 10px;
+        }
+
+        /* チェックボックスリスト */
+        .check-list { margin-bottom: 12px; }
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            font-size: 0.88rem;
+        }
+        .check-item:hover { background: #f5f9ff; }
+        .check-item input { width: auto; }
+
+        /* レポート */
+        .report-card {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .report-head {
+            background: #f5f5f5;
+            padding: 10px 14px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.88rem;
+        }
+        .report-head:hover { background: #eef3fb; }
+        .report-body {
+            display: none;
+            padding: 14px;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            border-top: 1px solid var(--border);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .report-card.open .report-body { display: block; }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 5px;
+            margin: 20px 0 12px;
+        }
+        .empty-msg {
+            text-align: center;
+            color: #999;
+            font-size: 0.85rem;
+            padding: 30px 10px;
+        }
+        .footer-note {
+            text-align: center;
+            font-size: 0.72rem;
+            color: #aaa;
+            margin-top: 20px;
+        }
+        .io-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+        @media (max-width: 600px) {
+            body { padding: 8px; }
+            .container { padding: 14px; }
+            .mode-tab { font-size: 0.72rem; padding: 8px 2px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🔧 何でもメンテナンスツール</h1>
+    <p class="subtitle">SKILL・ツールの健康診断 ─ 「これをお願い」で 良い所・悪い所・不安点・今やる事・アイデア を一気にまとめる</p>
+
+    <div class="mode-tabs">
+        <button class="mode-tab active" data-panel="dashboard">📊 ダッシュボード</button>
+        <button class="mode-tab" data-panel="register">📝 登録・編集</button>
+        <button class="mode-tab" data-panel="diagnose">🩺 診断依頼</button>
+        <button class="mode-tab" data-panel="reports">📋 レポート</button>
+    </div>
+
+    <!-- ========== ダッシュボード ========== -->
+    <div class="panel active" id="panel-dashboard">
+        <div class="stats-row">
+            <div class="stat-card stat-total"><div class="num" id="statTotal">0</div><div class="label">登録数</div></div>
+            <div class="stat-card stat-ok"><div class="num" id="statOk">0</div><div class="label">良好</div></div>
+            <div class="stat-card stat-warn"><div class="num" id="statWarn">0</div><div class="label">要観察</div></div>
+            <div class="stat-card stat-alert"><div class="num" id="statAlert">0</div><div class="label">要メンテ</div></div>
+        </div>
+        <div id="alertArea"></div>
+        <div id="itemList"></div>
+        <div class="io-row">
+            <button class="btn btn-gray btn-sm" onclick="exportData()">💾 バックアップ(JSON出力)</button>
+            <button class="btn btn-gray btn-sm" onclick="document.getElementById('importFile').click()">📂 復元(JSON読込)</button>
+            <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+        </div>
+    </div>
+
+    <!-- ========== 登録・編集 ========== -->
+    <div class="panel" id="panel-register">
+        <div class="section-title" id="formTitle">新しいSKILL・ツールを登録</div>
+        <input type="hidden" id="editId" value="">
+        <div class="form-row">
+            <div class="form-group">
+                <label class="input-label">名前 *</label>
+                <input type="text" id="fName" placeholder="例: 日報翻訳ツール / deep-research SKILL">
+            </div>
+            <div class="form-group">
+                <label class="input-label">種類</label>
+                <select id="fType">
+                    <option value="skill">SKILL</option>
+                    <option value="tool">ツール(HTML/アプリ)</option>
+                    <option value="script">スクリプト/コード</option>
+                    <option value="workflow">ワークフロー/手順</option>
+                    <option value="other">その他</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="input-label">現在の調子</label>
+                <select id="fHealth">
+                    <option value="ok">😀 良好（問題なく動いている）</option>
+                    <option value="warn">😐 要観察（たまに不調・気になる点あり）</option>
+                    <option value="alert">😣 要メンテ（バグ・壊れやすい・困っている）</option>
+                    <option value="unknown">❓ 不明（最近使っていない）</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="input-label">最終メンテ日</label>
+                <input type="text" id="fLastMaint" placeholder="例: 2026-06-12（空欄可）">
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="input-label">内容・役割（何をするものか）</label>
+            <textarea id="fDesc" placeholder="例: 日報をミャンマー語に翻訳してQRコード化するHTMLツール。Excel読込にも対応。"></textarea>
+        </div>
+        <div class="form-group">
+            <label class="input-label">気になっている点・既知のバグ・壊れやすい所</label>
+            <textarea id="fIssues" placeholder="例: ・大きいExcelを読むと固まることがある&#10;・CDNのライブラリが止まったら動かなくなる&#10;・スマホで表示が崩れる"></textarea>
+            <div class="hint">思いつくまま箇条書きでOK。診断依頼プロンプトに自動で組み込まれます。</div>
+        </div>
+        <button class="btn btn-primary btn-big" onclick="saveItem()">💾 保存する</button>
+        <button class="btn btn-gray btn-sm" id="cancelEditBtn" style="display:none" onclick="cancelEdit()">編集をやめる</button>
+    </div>
+
+    <!-- ========== 診断依頼 ========== -->
+    <div class="panel" id="panel-diagnose">
+        <div class="section-title">🩺 診断するものを選ぶ</div>
+        <div class="check-list" id="diagnoseList"></div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="input-label">診断の深さ</label>
+                <select id="diagDepth">
+                    <option value="full">フル診断（5項目すべて＋アイデア）</option>
+                    <option value="quick">クイック診断（悪い所・今やる事だけ）</option>
+                    <option value="upgrade">アップグレード提案中心</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="input-label">追加で伝えたいこと（任意）</label>
+                <input type="text" id="diagExtra" placeholder="例: 最近スマホからの利用が増えた">
+            </div>
+        </div>
+        <button class="btn btn-green btn-big" onclick="generatePrompt()">✨ これをお願い！（診断依頼プロンプトを生成）</button>
+        <div id="promptArea" style="display:none">
+            <label class="input-label">生成されたプロンプト ─ コピーしてClaudeに貼り付けてください</label>
+            <textarea class="prompt-output" id="promptOutput" readonly></textarea>
+            <div style="margin-top:8px">
+                <button class="btn btn-primary" onclick="copyPrompt()">📋 コピーする</button>
+                <span class="copied-msg" id="copiedMsg">✓ コピーしました！</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== レポート ========== -->
+    <div class="panel" id="panel-reports">
+        <div class="section-title">📥 診断結果を記録する</div>
+        <div class="form-group">
+            <label class="input-label">対象</label>
+            <select id="repTarget"></select>
+        </div>
+        <div class="form-group">
+            <label class="input-label">Claudeからの診断結果を貼り付け</label>
+            <textarea id="repBody" placeholder="診断結果（良い所・悪い所・不安点・今やる事・アイデア）をここに貼り付けて保存すると、履歴として残ります。"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="saveReport()">💾 レポートを保存</button>
+        <div class="section-title">📋 レポート履歴</div>
+        <div id="reportList"></div>
+    </div>
+
+    <p class="footer-note">データはこのブラウザのlocalStorageにのみ保存されます。機種変更・ブラウザ変更前にJSONバックアップを取ってください。</p>
+</div>
+
+<script>
+const LS_ITEMS = 'maintTool_items';
+const LS_REPORTS = 'maintTool_reports';
+const STALE_DAYS = 30; // この日数メンテしていないと注意喚起
+
+const TYPE_LABEL = { skill: 'SKILL', tool: 'ツール', script: 'スクリプト', workflow: 'ワークフロー', other: 'その他' };
+const HEALTH_LABEL = { ok: '😀 良好', warn: '😐 要観察', alert: '😣 要メンテ', unknown: '❓ 不明' };
+
+let items = JSON.parse(localStorage.getItem(LS_ITEMS) || '[]');
+let reports = JSON.parse(localStorage.getItem(LS_REPORTS) || '[]');
+
+function saveAll() {
+    localStorage.setItem(LS_ITEMS, JSON.stringify(items));
+    localStorage.setItem(LS_REPORTS, JSON.stringify(reports));
+}
+
+function esc(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ===== タブ切替 ===== */
+document.querySelectorAll('.mode-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+        renderAll();
+    });
+});
+
+/* ===== 登録・編集 ===== */
+function saveItem() {
+    const name = document.getElementById('fName').value.trim();
+    if (!name) { alert('名前を入力してください'); return; }
+    const editId = document.getElementById('editId').value;
+    const data = {
+        id: editId || ('it' + Date.now()),
+        name,
+        type: document.getElementById('fType').value,
+        health: document.getElementById('fHealth').value,
+        lastMaint: document.getElementById('fLastMaint').value.trim(),
+        desc: document.getElementById('fDesc').value.trim(),
+        issues: document.getElementById('fIssues').value.trim(),
+        updatedAt: new Date().toISOString().slice(0, 10)
+    };
+    if (editId) {
+        const i = items.findIndex(x => x.id === editId);
+        if (i >= 0) items[i] = data;
+    } else {
+        items.push(data);
+    }
+    saveAll();
+    clearForm();
+    switchTab('dashboard');
+}
+
+function clearForm() {
+    document.getElementById('editId').value = '';
+    document.getElementById('fName').value = '';
+    document.getElementById('fType').value = 'skill';
+    document.getElementById('fHealth').value = 'ok';
+    document.getElementById('fLastMaint').value = '';
+    document.getElementById('fDesc').value = '';
+    document.getElementById('fIssues').value = '';
+    document.getElementById('formTitle').textContent = '新しいSKILL・ツールを登録';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+}
+
+function editItem(id) {
+    const it = items.find(x => x.id === id);
+    if (!it) return;
+    document.getElementById('editId').value = it.id;
+    document.getElementById('fName').value = it.name;
+    document.getElementById('fType').value = it.type;
+    document.getElementById('fHealth').value = it.health;
+    document.getElementById('fLastMaint').value = it.lastMaint || '';
+    document.getElementById('fDesc').value = it.desc || '';
+    document.getElementById('fIssues').value = it.issues || '';
+    document.getElementById('formTitle').textContent = '「' + it.name + '」を編集';
+    document.getElementById('cancelEditBtn').style.display = 'inline-block';
+    switchTab('register');
+}
+
+function cancelEdit() { clearForm(); switchTab('dashboard'); }
+
+function deleteItem(id) {
+    const it = items.find(x => x.id === id);
+    if (!it) return;
+    if (!confirm('「' + it.name + '」を削除しますか？（レポート履歴は残ります）')) return;
+    items = items.filter(x => x.id !== id);
+    saveAll();
+    renderAll();
+}
+
+function switchTab(name) {
+    document.querySelector('.mode-tab[data-panel="' + name + '"]').click();
+}
+
+/* ===== ダッシュボード ===== */
+function daysSince(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d)) return null;
+    return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+function renderDashboard() {
+    const counts = { ok: 0, warn: 0, alert: 0, unknown: 0 };
+    items.forEach(it => counts[it.health] = (counts[it.health] || 0) + 1);
+    document.getElementById('statTotal').textContent = items.length;
+    document.getElementById('statOk').textContent = counts.ok;
+    document.getElementById('statWarn').textContent = counts.warn + counts.unknown;
+    document.getElementById('statAlert').textContent = counts.alert;
+
+    // 注意喚起
+    const alerts = [];
+    items.forEach(it => {
+        if (it.health === 'alert') alerts.push({ critical: true, msg: '「' + it.name + '」が要メンテ状態です。診断依頼タブから「これをお願い」を実行しましょう。' });
+        const ds = daysSince(it.lastMaint);
+        if (ds !== null && ds > STALE_DAYS) alerts.push({ critical: false, msg: '「' + it.name + '」は最終メンテから' + ds + '日経過。定期点検をおすすめします。' });
+        if (it.health === 'unknown') alerts.push({ critical: false, msg: '「' + it.name + '」の状態が不明です。一度動かして状態を更新しましょう。' });
+    });
+    const aa = document.getElementById('alertArea');
+    aa.innerHTML = alerts.map(a =>
+        '<div class="alert-box' + (a.critical ? ' critical' : '') + '"><strong>' + (a.critical ? '🚨 要対応' : '⚠️ 注意') + '</strong>' + esc(a.msg) + '</div>'
+    ).join('');
+
+    // アイテム一覧
+    const list = document.getElementById('itemList');
+    if (items.length === 0) {
+        list.innerHTML = '<div class="empty-msg">まだ何も登録されていません。<br>「📝 登録・編集」タブから、お持ちのSKILLやツールを登録してください。</div>';
+        return;
+    }
+    const order = { alert: 0, warn: 1, unknown: 2, ok: 3 };
+    const sorted = [...items].sort((a, b) => order[a.health] - order[b.health]);
+    list.innerHTML = sorted.map(it => {
+        const ds = daysSince(it.lastMaint);
+        return '<div class="item-card health-' + it.health + '">' +
+            '<div class="item-name">' + esc(it.name) + '</div>' +
+            '<div class="item-meta">' +
+                '<span class="tag tag-' + it.type + '">' + TYPE_LABEL[it.type] + '</span>' +
+                '<span class="tag tag-status">' + HEALTH_LABEL[it.health] + '</span>' +
+                (it.lastMaint ? ' 最終メンテ: ' + esc(it.lastMaint) + (ds !== null ? '（' + ds + '日前）' : '') : ' 最終メンテ: 未記録') +
+            '</div>' +
+            (it.desc ? '<div class="item-desc">' + esc(it.desc) + '</div>' : '') +
+            (it.issues ? '<div class="item-desc" style="color:var(--red)">⚠ ' + esc(it.issues) + '</div>' : '') +
+            '<div class="item-actions">' +
+                '<button class="btn btn-green btn-sm" onclick="quickDiagnose(\'' + it.id + '\')">🩺 これをお願い</button>' +
+                '<button class="btn btn-primary btn-sm" onclick="editItem(\'' + it.id + '\')">✏️ 編集</button>' +
+                '<button class="btn btn-red btn-sm" onclick="deleteItem(\'' + it.id + '\')">🗑 削除</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+/* ===== 診断依頼 ===== */
+function renderDiagnoseList() {
+    const dl = document.getElementById('diagnoseList');
+    if (items.length === 0) {
+        dl.innerHTML = '<div class="empty-msg">登録がありません。先に「📝 登録・編集」から登録してください。</div>';
+        return;
+    }
+    dl.innerHTML = items.map(it =>
+        '<label class="check-item"><input type="checkbox" value="' + it.id + '"> ' +
+        '<span class="tag tag-' + it.type + '">' + TYPE_LABEL[it.type] + '</span> ' + esc(it.name) +
+        ' <span style="color:#999;font-size:0.75rem">' + HEALTH_LABEL[it.health] + '</span></label>'
+    ).join('');
+}
+
+function quickDiagnose(id) {
+    switchTab('diagnose');
+    document.querySelectorAll('#diagnoseList input').forEach(cb => cb.checked = (cb.value === id));
+    generatePrompt();
+}
+
+function generatePrompt() {
+    const checked = [...document.querySelectorAll('#diagnoseList input:checked')].map(cb => cb.value);
+    if (checked.length === 0) { alert('診断するものを1つ以上選んでください'); return; }
+    const depth = document.getElementById('diagDepth').value;
+    const extra = document.getElementById('diagExtra').value.trim();
+    const targets = items.filter(it => checked.includes(it.id));
+
+    let p = 'あなたはソフトウェア・ツールのメンテナンス専門家です。\n';
+    p += '以下の私のSKILL・ツールについて総合メンテナンス診断をお願いします。\n\n';
+    p += '【診断対象】\n';
+    targets.forEach((it, i) => {
+        p += '--- 対象' + (i + 1) + ' ---\n';
+        p += '名前: ' + it.name + '\n';
+        p += '種類: ' + TYPE_LABEL[it.type] + '\n';
+        p += '現在の調子: ' + HEALTH_LABEL[it.health] + '\n';
+        if (it.lastMaint) p += '最終メンテ日: ' + it.lastMaint + '\n';
+        if (it.desc) p += '内容・役割:\n' + it.desc + '\n';
+        if (it.issues) p += '気になっている点・既知のバグ:\n' + it.issues + '\n';
+        p += '\n';
+    });
+    if (extra) p += '【補足情報】\n' + extra + '\n\n';
+
+    p += '【診断してほしい内容】\n';
+    if (depth === 'full') {
+        p += '対象ごとに、次の5つの観点で一気にまとめてください。\n\n';
+        p += '1. 良い所 ─ 強み・うまく機能している点・残すべき設計\n';
+        p += '2. 悪い所 ─ バグの可能性・壊れやすい仕組み・非効率な部分・依存関係のリスク\n';
+        p += '3. この先の不安点 ─ 放置すると将来困ること（環境変化・データ肥大・依存サービス終了など）\n';
+        p += '4. 今しておくと良い事 ─ 優先度順の具体的なメンテナンス・改善アクション（すぐできる順に）\n';
+        p += '5. アイデア ─ アップグレード提案・新機能・他ツールとの連携・効率化の工夫など自由な発想で\n';
+    } else if (depth === 'quick') {
+        p += '対象ごとに、次の2点だけを簡潔にまとめてください。\n\n';
+        p += '1. 悪い所 ─ バグの可能性・壊れやすい仕組み・非効率な部分\n';
+        p += '2. 今しておくと良い事 ─ 優先度順の具体的アクション（すぐできる順に）\n';
+    } else {
+        p += '対象ごとに、アップグレード提案を中心にまとめてください。\n\n';
+        p += '1. 現状の限界 ─ 今の作りで頭打ちになっている部分\n';
+        p += '2. アップグレード案 ─ 機能追加・作り直し・他ツール連携などの提案（効果と手間の目安つき）\n';
+        p += '3. アイデア ─ 自由な発想での改善・新しい使い方の提案\n';
+    }
+    p += '\n【出力の条件】\n';
+    p += '・日本語で、見出しをつけて読みやすく整理してください\n';
+    p += '・推測になる部分は「推測ですが」と明示してください\n';
+    p += '・「今しておくと良い事」は優先度（高・中・低）をつけてください\n';
+    p += '・コードやファイルを直接確認できる場合は、実際に確認した上で診断してください\n';
+
+    document.getElementById('promptOutput').value = p;
+    document.getElementById('promptArea').style.display = 'block';
+    document.getElementById('promptOutput').scrollIntoView({ behavior: 'smooth' });
+}
+
+function copyPrompt() {
+    const ta = document.getElementById('promptOutput');
+    ta.select();
+    navigator.clipboard.writeText(ta.value).then(() => {
+        const msg = document.getElementById('copiedMsg');
+        msg.style.display = 'inline';
+        setTimeout(() => msg.style.display = 'none', 2000);
+    }).catch(() => {
+        document.execCommand('copy');
+        const msg = document.getElementById('copiedMsg');
+        msg.style.display = 'inline';
+        setTimeout(() => msg.style.display = 'none', 2000);
+    });
+}
+
+/* ===== レポート ===== */
+function renderReportTargets() {
+    const sel = document.getElementById('repTarget');
+    sel.innerHTML = '<option value="">（全体・その他）</option>' +
+        items.map(it => '<option value="' + it.id + '">' + esc(it.name) + '</option>').join('');
+}
+
+function saveReport() {
+    const body = document.getElementById('repBody').value.trim();
+    if (!body) { alert('診断結果を貼り付けてください'); return; }
+    const targetId = document.getElementById('repTarget').value;
+    const target = items.find(x => x.id === targetId);
+    const today = new Date().toISOString().slice(0, 10);
+    reports.unshift({
+        id: 'rp' + Date.now(),
+        date: today,
+        targetId,
+        targetName: target ? target.name : '全体・その他',
+        body
+    });
+    // 対象の最終メンテ日を自動更新
+    if (target) {
+        target.lastMaint = today;
+        if (target.health === 'alert' || target.health === 'unknown') {
+            if (confirm('「' + target.name + '」の状態を「😀 良好」に更新しますか？')) target.health = 'ok';
+        }
+    }
+    saveAll();
+    document.getElementById('repBody').value = '';
+    renderAll();
+    alert('レポートを保存しました');
+}
+
+function deleteReport(id) {
+    if (!confirm('このレポートを削除しますか？')) return;
+    reports = reports.filter(r => r.id !== id);
+    saveAll();
+    renderReports();
+}
+
+function renderReports() {
+    const rl = document.getElementById('reportList');
+    if (reports.length === 0) {
+        rl.innerHTML = '<div class="empty-msg">まだレポートがありません。<br>診断結果を貼り付けて保存すると、ここに履歴が残ります。</div>';
+        return;
+    }
+    rl.innerHTML = reports.map(r =>
+        '<div class="report-card" id="rep-' + r.id + '">' +
+            '<div class="report-head" onclick="document.getElementById(\'rep-' + r.id + '\').classList.toggle(\'open\')">' +
+                '<span>📅 ' + esc(r.date) + '　<strong>' + esc(r.targetName) + '</strong></span>' +
+                '<button class="btn btn-red btn-sm" onclick="event.stopPropagation();deleteReport(\'' + r.id + '\')">🗑</button>' +
+            '</div>' +
+            '<div class="report-body">' + esc(r.body) + '</div>' +
+        '</div>'
+    ).join('');
+}
+
+/* ===== バックアップ ===== */
+function exportData() {
+    const blob = new Blob([JSON.stringify({ items, reports }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'maintenance-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+function importData(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data.items)) throw new Error('形式が違います');
+            if (!confirm('現在のデータを読み込んだ内容で置き換えます。よろしいですか？')) return;
+            items = data.items;
+            reports = Array.isArray(data.reports) ? data.reports : [];
+            saveAll();
+            renderAll();
+            alert('復元しました');
+        } catch (err) {
+            alert('読み込みに失敗しました: ' + err.message);
+        }
+        input.value = '';
+    };
+    reader.readAsText(file);
+}
+
+/* ===== 全体再描画 ===== */
+function renderAll() {
+    renderDashboard();
+    renderDiagnoseList();
+    renderReportTargets();
+    renderReports();
+}
+
+renderAll();
+</script>
+</body>
+</html>
